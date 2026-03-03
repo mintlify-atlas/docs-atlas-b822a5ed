@@ -1,0 +1,88 @@
+---
+title: Introduction
+description: Health reminders for vibe coders — stretches, eye breaks, and hydration nudges woven into your Claude Code flow
+---
+
+# Welcome to Vibe Check
+
+Vibe Check is a Claude Code plugin that tracks your coding session and gently reminds you to take care of your body. No OS popups or interruptions — reminders appear as visually distinct cards right in your Claude conversation.
+
+```
+────────────────────────────────────────────────────────────────────────────────
+⏰ VIBE CHECK — 👁️ Eye Reset (20 min since last break)
+────────────────────────────────────────────────────────────────────────────────
+Look at something 20+ feet away for 20 seconds (the 20-20-20 rule). Then blink
+rapidly 15 times to re-lubricate your eyes.
+────────────────────────────────────────────────────────────────────────────────
+```
+
+<CardGroup cols={3}>
+  <Card title="Installation" icon="download" href="/installation">
+    Get started with Vibe Check in seconds
+  </Card>
+  <Card title="How It Works" icon="gears" href="/how-it-works">
+    Learn about the intelligent tracking system
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration">
+    Customize intervals and break durations
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Micro-breaks every 20 min" icon="eye">
+    Eye rest, wrist stretches, and shoulder rolls to combat repetitive strain
+  </Card>
+  <Card title="Full breaks every 50 min" icon="person-walking">
+    Stand up, walk around, and do full-body stretches
+  </Card>
+  <Card title="Hydration nudges every 30 min" icon="droplet">
+    Water reminders, snack checks, and caffeine awareness
+  </Card>
+  <Card title="Smart break tracking" icon="brain">
+    Detects when you actually take breaks and adjusts timers accordingly
+  </Card>
+</CardGroup>
+
+### Intelligent Break Detection
+
+- **Break compliance tracking** — measures whether you actually took the suggested break based on the gap before your next prompt
+- **Spontaneous break detection** — if you step away for 15+ minutes without a pending reminder, all timers reset automatically
+- **Multi-session support** — multiple Claude Code sessions share the same timers automatically
+- **Seamless continuation** — if an active session already exists (within the last 60 min), new sessions join without resetting timers
+
+## Evidence-Based Science
+
+The timing intervals in Vibe Check are rooted in scientific research:
+
+<AccordionGroup>
+  <Accordion title="20-20-20 Rule for Eye Health">
+    Endorsed by the American Academy of Ophthalmology to reduce digital eye strain. Every 20 minutes, look at something 20+ feet away for 20 seconds.
+  </Accordion>
+  
+  <Accordion title="52-17 Work-Break Ratio">
+    The DeskTime study found top performers work ~52 minutes then break ~17 minutes, aligning with natural ultradian rhythms. Vibe Check's 50-minute interval follows this evidence.
+  </Accordion>
+  
+  <Accordion title="Hydration and Cognition">
+    Even 1-2% dehydration impairs cognitive performance by up to 25% (Journal of Nutrition, 2012). Regular hydration reminders keep your brain functioning optimally.
+  </Accordion>
+  
+  <Accordion title="Micro-breaks Reduce Discomfort">
+    A meta-analysis in PLOS ONE found brief breaks reduce physical discomfort and improve task performance across occupations.
+  </Accordion>
+</AccordionGroup>
+
+## On-Demand Health Tips
+
+Run `/vibe-check:health` anytime for a full reference card of:
+
+- Quick stretches (neck, wrists, back, shoulders, hips)
+- Eye exercises (20-20-20, palming, near-far focus)
+- Breathing techniques (box breathing, 4-7-8, physiological sigh)
+- Ergonomic checklist (monitor, chair, posture)
+
+<Info>
+  Health tracking starts automatically on your next session after installation. No configuration required to get started!
+</Info>

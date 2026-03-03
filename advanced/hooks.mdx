@@ -1,0 +1,307 @@
+---
+title: "Hook System"
+description: "How Vibe Check uses Claude Code lifecycle hooks to track sessions and inject reminders"
+---
+
+## Hook Registration
+
+Vibe Check registers three lifecycle hooks in `hooks/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/session_start.py\""
+      }]
+    }],
+    "UserPromptSubmit": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/check_reminder.py\""
+      }]
+    }],
+    "Stop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/stop_hook.py\""
+      }]
+    }]
+  }
+}
+```
+
+All hooks use:
+- Empty `matcher` to fire on every event
+- `type: "command"` to execute shell commands
+- `${CLAUDE_PLUGIN_ROOT}` to reference plugin scripts
+
+## SessionStart Hook
+
+### Purpose
+
+Initializes or joins an existing session when Claude starts.
+
+### Implementation
+
+`scripts/session_start.py:11-42`:
+
+```python
+def main():
+    try:
+        with state_lock(blocking=True):
+            now = time.time()
+            existing = None
+
+            try:
+                existing = load_state()
+                if "last_active" not in existing:
+                    existing = None
+            except Exception:
+                existing = None
+
+            if existing and (now - existing["last_active"]) < STALE_THRESHOLD:
+                existing["last_active"] = now
+                state = existing
+                msg = (
+                    "✨ Vibe Check joined an active session. "
+                    "Health tracking continues where you left off!"
+                )
+            else:
+                state = fresh_state()
+                msg = (
+                    "✨ Vibe Check health tracking is active for this session. "
+                    "I'll nudge you to stretch, hydrate, and rest your eyes. "
+                    "Let's code healthy!"
+                )
+
+            save_state(state)
+
+        print(msg)
+```
+
+### Behavior
+
+1. **Load existing state** — Attempt to load from disk
+2. **Check staleness** — If `last_active` is within 60 minutes (default), join the session
+3. **Join or create** — Preserve timers if active, otherwise create fresh state
+4. **Print message** — Output welcome message for Claude to relay
+
+### Output
+
+The hook prints to stdout. Claude sees this output and includes it in the session context.
+
+## UserPromptSubmit Hook
+
+### Purpose
+
+Core reminder engine that fires before Claude processes each user prompt.
+
+### Implementation
+
+`scripts/check_reminder.py:68-161`:
+
+```python
+def main():
+    try:
+        with state_lock(blocking=True):
+            state = load_state()
+            tips = load_tips()
+            now = time.time()
+
+            # --- Stale session check ---
+            if now - state.get("last_active", now) >= STALE_THRESHOLD:
+                state = fresh_state()
+                save_state(state)
+                return
+
+            response_gap = now - state.get("last_response_end", now)
+            pending = state.get("pending_break")
+
+            # --- Layer 1: Check break compliance after a reminder ---
+            if pending:
+                if response_gap >= SPONTANEOUS_BREAK_THRESHOLD:
+                    # Long gap overrides pending — reset all timers
+                    state["last_micro"] = state["last_full"] = state["last_hydration"] = now
+                else:
+                    break_type = pending.get("type")
+                    threshold = COMPLIANCE_THRESHOLDS.get(break_type, 120)
+                    if response_gap >= threshold:
+                        # User took the break — reset that timer
+                        if break_type == "full":
+                            state["last_full"] = now
+                            state["last_micro"] = now
+                            state["last_hydration"] = now
+                        elif break_type == "hydration":
+                            state["last_hydration"] = now
+                        elif break_type == "micro":
+                            state["last_micro"] = now
+                state["pending_break"] = None
+
+            # --- Layer 2: Spontaneous break detection ---
+            elif response_gap >= SPONTANEOUS_BREAK_THRESHOLD:
+                state["last_micro"] = now
+                state["last_full"] = now
+                state["last_hydration"] = now
+
+            # --- Cross-session dedup guard ---
+            DEDUP_WINDOW = 30  # seconds
+            if now - state.get("last_reminder_fired_at", 0) < DEDUP_WINDOW:
+                state["last_active"] = now
+                save_state(state)
+                return
+
+            # --- Check timers in priority order ---
+            reminder = None
+
+            if now - state["last_full"] >= FULL_INTERVAL:
+                tip = pick_tip(tips["full_break"], state, "full_break")
+                reminder = format_reminder(tip, now - state["last_full"])
+                state["last_full"] = now
+                state["last_micro"] = now
+                state["last_hydration"] = now
+                state["pending_break"] = {"type": "full", "fired_at": now}
+
+            elif now - state["last_hydration"] >= HYDRATION_INTERVAL:
+                tip = pick_tip(tips["hydration"], state, "hydration")
+                reminder = format_reminder(tip, now - state["last_hydration"])
+                state["last_hydration"] = now
+                state["pending_break"] = {"type": "hydration", "fired_at": now}
+
+            elif now - state["last_micro"] >= MICRO_INTERVAL:
+                tip = pick_tip(tips["micro_break"], state, "micro_break")
+                reminder = format_reminder(tip, now - state["last_micro"])
+                state["last_micro"] = now
+                state["pending_break"] = {"type": "micro", "fired_at": now}
+
+            if reminder:
+                state["reminder_count"] += 1
+                state["last_reminder_fired_at"] = now
+                print(json.dumps({
+                    "hookSpecificOutput": {
+                        "hookEventName": "UserPromptSubmit",
+                        "additionalContext": reminder,
+                    }
+                }))
+
+            state["last_active"] = now
+            save_state(state)
+```
+
+### Processing Layers
+
+1. **Stale session check** — Reset if inactive 60+ minutes
+2. **Break compliance** — Check if user took the last suggested break
+3. **Spontaneous breaks** — Detect 15+ minute gaps without pending reminder
+4. **Deduplication** — Prevent duplicate reminders within 30 seconds
+5. **Timer checks** — Check full → hydration → micro in priority order
+6. **Fire reminder** — Output JSON with `additionalContext` if due
+
+### Hook Output Format
+
+When a reminder is due, the hook outputs JSON:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "VIBE CHECK REMINDER — output the following..."
+  }
+}
+```
+
+Claude Code injects `additionalContext` into the model's context before processing the user prompt.
+
+## Stop Hook
+
+### Purpose
+
+Records the timestamp when Claude finishes generating a response.
+
+### Implementation
+
+`scripts/stop_hook.py:9-22`:
+
+```python
+def main():
+    try:
+        with state_lock(blocking=True):
+            state = load_state()
+            now = time.time()
+            state["last_response_end"] = now
+            state["last_active"] = now
+            save_state(state)
+    except Exception:
+        pass
+```
+
+### Behavior
+
+1. **Acquire lock** — Exclusive access to state
+2. **Update timestamps** — Set `last_response_end` and `last_active`
+3. **Save state** — Write atomically
+4. **Silent failure** — Errors are swallowed to avoid interrupting conversation
+
+### Why This Matters
+
+The `last_response_end` timestamp enables precise gap measurement:
+
+```python
+response_gap = now - state.get("last_response_end", now)
+```
+
+This gap determines:
+- Whether the user took a suggested break (compliance)
+- Whether the user took a spontaneous break (15+ minutes)
+
+## Hook Coordination
+
+The three hooks work together:
+
+```
+┌─────────────────────────────────────────────┐
+│  SessionStart                               │
+│  - Load or create state                     │
+│  - Print welcome message                    │
+└────────────────┬────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│  UserPromptSubmit                           │
+│  - Check compliance since last response     │
+│  - Check if any timer is due                │
+│  - Inject reminder into context             │
+└────────────────┬────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│  Claude generates response                  │
+└────────────────┬────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│  Stop                                       │
+│  - Record last_response_end                 │
+│  - Enable next compliance check             │
+└─────────────────────────────────────────────┘
+```
+
+### Timing Flow
+
+1. **User sends prompt** → `UserPromptSubmit` fires
+2. **Check gap** → `now - last_response_end` = time since last response
+3. **Compliance** → If gap ≥ break threshold, user took the break
+4. **Response ends** → `Stop` records new `last_response_end`
+5. **Next prompt** → Gap measurement uses updated timestamp
+
+## Hook Lifecycle
+
+Hooks are registered at session start and remain active for the entire session. To reload hooks after updating:
+
+1. Exit Claude
+2. Restart Claude
+3. SessionStart hook runs with new code

@@ -1,0 +1,246 @@
+---
+title: "State Management"
+description: "How Vibe Check persists and synchronizes session state across multiple Claude instances"
+---
+
+## State File Structure
+
+Vibe Check maintains a JSON state file at `~/.claude/vibe-check-state.json` with the following schema:
+
+```json
+{
+  "session_start": 1709486400.0,
+  "last_micro": 1709486400.0,
+  "last_full": 1709486400.0,
+  "last_hydration": 1709486400.0,
+  "reminder_count": 0,
+  "last_active": 1709486400.0,
+  "last_response_end": 1709486400.0,
+  "pending_break": null,
+  "tip_index": {
+    "micro_break": 0,
+    "full_break": 0,
+    "hydration": 0
+  },
+  "last_reminder_fired_at": 0
+}
+```
+
+## Required Keys
+
+The state validation logic requires these keys to be present (`scripts/shared.py:27-28`):
+
+```python
+REQUIRED_KEYS = ["session_start", "last_micro", "last_full", "last_hydration",
+                 "reminder_count", "last_active", "last_response_end"]
+```
+
+If any key is missing, the state file is treated as corrupt and replaced with a fresh state.
+
+## Key Definitions
+
+| Key | Type | Purpose |
+|-----|------|--------|
+| `session_start` | float | Unix timestamp when session began |
+| `last_micro` | float | Last micro-break (eyes, wrists) |
+| `last_full` | float | Last full break (stand, stretch) |
+| `last_hydration` | float | Last hydration reminder |
+| `reminder_count` | int | Total reminders fired this session |
+| `last_active` | float | Last user or system activity |
+| `last_response_end` | float | When Claude finished last response |
+| `pending_break` | object/null | Break awaiting compliance check |
+| `tip_index` | object | Rotation indices for each tip category |
+| `last_reminder_fired_at` | float | Deduplication guard timestamp |
+
+## Fresh State
+
+When creating a fresh state, all timers are set to the current time (`scripts/shared.py:31-45`):
+
+```python
+def fresh_state():
+    """Return a fresh state dict with all timers set to now."""
+    now = time.time()
+    return {
+        "session_start": now,
+        "last_micro": now,
+        "last_full": now,
+        "last_hydration": now,
+        "reminder_count": 0,
+        "last_active": now,
+        "last_response_end": now,
+        "pending_break": None,
+        "tip_index": {"micro_break": 0, "full_break": 0, "hydration": 0},
+        "last_reminder_fired_at": 0,
+    }
+```
+
+## Loading State
+
+The `load_state()` function handles missing or corrupt state files gracefully (`scripts/shared.py:48-60`):
+
+```python
+def load_state():
+    """Load state file, returning fresh state if missing or corrupt."""
+    try:
+        with open(STATE_PATH, "r") as f:
+            state = json.load(f)
+        for key in REQUIRED_KEYS:
+            if key not in state:
+                raise KeyError(key)
+        return state
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        state = fresh_state()
+        save_state(state)
+        return state
+```
+
+If the file doesn't exist, contains invalid JSON, or is missing required keys, a fresh state is created and saved.
+
+## Atomic Writes
+
+State updates use atomic write-then-rename to prevent corruption (`scripts/shared.py:63-69`):
+
+```python
+def save_state(state):
+    """Write state to disk atomically (temp file + rename)."""
+    os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+    tmp = STATE_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, indent=2)
+    os.rename(tmp, STATE_PATH)
+```
+
+1. Write to `.tmp` file
+2. Atomically rename to final path
+3. Ensures no partial writes are visible
+
+## Locking Mechanism
+
+Vibe Check uses `fcntl` file locking to coordinate access across concurrent Claude sessions (`scripts/shared.py:72-101`):
+
+```python
+@contextmanager
+def state_lock(blocking=True, timeout=1.0):
+    """Context manager for exclusive file locking.
+
+    blocking=True:  wait indefinitely for the lock (sync hooks)
+    blocking=False: try for `timeout` seconds, raise TimeoutError if can't acquire
+    """
+    os.makedirs(os.path.dirname(LOCK_PATH), exist_ok=True)
+    lock_fd = open(LOCK_PATH, "a")
+    try:
+        if blocking:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        else:
+            deadline = time.time() + timeout
+            while True:
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except (IOError, OSError):
+                    if time.time() >= deadline:
+                        lock_fd.close()
+                        raise TimeoutError("Could not acquire state lock")
+                    time.sleep(0.05)
+        yield
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+        except Exception:
+            pass
+```
+
+### Blocking Mode
+
+All hooks use `blocking=True`, waiting indefinitely for the lock. This ensures safe concurrent access:
+
+```python
+with state_lock(blocking=True):
+    state = load_state()
+    # ... modify state ...
+    save_state(state)
+```
+
+### Non-Blocking Mode
+
+The non-blocking mode is available for future use cases that need timeout behavior.
+
+## Joining Active Sessions
+
+The `session_start.py` hook checks if an active session exists (`scripts/session_start.py:24-30`):
+
+```python
+if existing and (now - existing["last_active"]) < STALE_THRESHOLD:
+    existing["last_active"] = now
+    state = existing
+    msg = (
+        "✨ Vibe Check joined an active session. "
+        "Health tracking continues where you left off!"
+    )
+```
+
+If `last_active` is within the stale threshold (default 60 minutes), the session continues with existing timers.
+
+## Stale Session Detection
+
+When `last_active` exceeds the stale threshold, a fresh state is created (`scripts/check_reminder.py:76-80`):
+
+```python
+# --- Stale session check ---
+# Catches long-running sessions left open overnight
+if now - state.get("last_active", now) >= STALE_THRESHOLD:
+    state = fresh_state()
+    save_state(state)
+    return
+```
+
+This prevents stale timers from sessions left open overnight or over the weekend.
+
+## Pending Break State
+
+After firing a reminder, the system stores `pending_break` to track compliance:
+
+```python
+state["pending_break"] = {"type": "full", "fired_at": now}
+```
+
+On the next prompt, the system checks the gap since `last_response_end`. If the gap exceeds the break's threshold, the timer is reset:
+
+```python
+if pending:
+    break_type = pending.get("type")
+    threshold = COMPLIANCE_THRESHOLDS.get(break_type, 120)
+    if response_gap >= threshold:
+        # User took the break — reset that timer
+        if break_type == "full":
+            state["last_full"] = now
+            state["last_micro"] = now
+            state["last_hydration"] = now
+    state["pending_break"] = None
+```
+
+## Spontaneous Break Detection
+
+If the user steps away for 15+ minutes (default) without a pending reminder, all timers reset (`scripts/check_reminder.py:107-110`):
+
+```python
+# --- Layer 2: Spontaneous break detection ---
+elif response_gap >= SPONTANEOUS_BREAK_THRESHOLD:
+    state["last_micro"] = now
+    state["last_full"] = now
+    state["last_hydration"] = now
+```
+
+## Deduplication Guard
+
+To prevent duplicate reminders in rapid succession, a 30-second dedup window is enforced (`scripts/check_reminder.py:112-117`):
+
+```python
+# --- Cross-session dedup guard ---
+DEDUP_WINDOW = 30  # seconds
+if now - state.get("last_reminder_fired_at", 0) < DEDUP_WINDOW:
+    state["last_active"] = now
+    save_state(state)
+    return
+```

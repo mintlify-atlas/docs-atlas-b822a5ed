@@ -1,0 +1,109 @@
+---
+title: Full Breaks
+description: Complete 5-minute breaks every 50 minutes for standing, walking, and full-body movement
+---
+
+## What are Full Breaks?
+
+Full breaks are comprehensive movement breaks that fire every **50 minutes** during your coding session. Unlike quick micro-breaks, these are designed for you to fully step away from your desk for 5+ minutes.
+
+These breaks target:
+- **Cardiovascular health** — getting blood flowing after prolonged sitting
+- **Full-body mobility** — reversing the effects of static postures
+- **Mental reset** — clearing cognitive fatigue and improving focus
+- **Spinal health** — decompressing the spine after extended sitting
+
+<Note>
+The 50-minute interval aligns with **ultradian rhythms** — natural cycles of high and low alertness that occur throughout the day.
+</Note>
+
+## The 52-17 Work-Break Ratio
+
+The timing for full breaks is based on research from the DeskTime study, which analyzed the habits of the most productive workers:
+
+- **52 minutes** of focused work
+- **17 minutes** of complete break time
+
+This ratio aligns with the body's natural ultradian rhythms (90-120 minute cycles of alertness). Workers who followed this pattern showed:
+- Higher productivity
+- Better sustained focus
+- Reduced burnout symptoms
+- Improved work quality
+
+<Tip>
+Vibe Check's 50-minute interval gives you a buffer before you hit the point of diminishing returns in your focus.
+</Tip>
+
+## Impact on Productivity
+
+Taking regular full breaks isn't just about physical health — it's a productivity multiplier:
+
+- **Cognitive refresh** — Your brain's prefrontal cortex (responsible for focus and decision-making) fatigues after sustained use. Brief breaks restore its function.
+- **Problem-solving** — Stepping away activates your brain's "default mode network," which continues working on problems subconsciously.
+- **Reduced errors** — A meta-analysis in PLOS ONE found that brief breaks reduce mistakes and improve task performance.
+- **Increased blood flow** — Movement increases blood flow to the brain by up to 15%, boosting mental clarity.
+
+<Info>
+Many developers report solving difficult bugs or having breakthrough insights during or immediately after a full break.
+</Info>
+
+## Example Full Break Tips
+
+Vibe Check provides a variety of full break activities. Here are some examples:
+
+### 🧍 Stand & Stretch
+> Stand up! Shoulder rolls (5x back), seated spinal twist (10 sec/side), hip flexor lunge (20 sec/side), calf raises (15 reps). Walk around for 2 minutes.
+
+### 🌿 Nature + Breathing
+> Look out a window at something green or distant. Do box breathing: inhale 4 sec → hold 4 → exhale 4 → hold 4. Repeat 4 cycles.
+
+### 🪑 Ergo Audit
+> Quick check: feet flat on floor? Back supported? Screen top at eye level? Wrists neutral? Shoulders down (not at your ears)? Fix one thing right now.
+
+### 🚶 Walk Break
+> Take a 2-3 minute walk. Even a lap around your room resets your focus. Movement increases blood flow to the brain by up to 15%.
+
+### 🧠 Brain Reset
+> Close your eyes. Take 5 slow breaths. Think about absolutely nothing code-related for 60 seconds. Your subconscious will keep problem-solving.
+
+### 💪 Desk Exercises
+> Try 10 seated leg raises, 10 desk push-ups (hands on desk edge), and 10 chair squats (stand up and sit down slowly). Takes 90 seconds.
+
+### 🔄 Spinal Decompression
+> Stand up, interlace fingers overhead, palms to ceiling. Stretch tall, lean slightly left 10 sec, then right 10 sec. Elongate your spine.
+
+## How Full Breaks Reset Timers
+
+When you take a full break, Vibe Check resets **all** reminder timers:
+
+```python
+if break_type == "full":
+    state["last_full"] = now
+    state["last_micro"] = now      # Also resets micro-break timer
+    state["last_hydration"] = now  # Also resets hydration timer
+```
+
+This design reflects the reality that a 5-minute full break provides the benefits of micro-breaks and hydration checks, so you won't get redundant reminders immediately after.
+
+<Info>
+Full breaks take priority over other reminder types. If multiple reminders are due, Vibe Check fires the full break first.
+</Info>
+
+## Configuration
+
+Customize the full break interval and duration threshold:
+
+```bash
+VIBE_CHECK_FULL_INTERVAL=3000      # Seconds between full breaks (default: 50 min)
+VIBE_CHECK_FULL_BREAK_DURATION=300 # Seconds of gap to credit as "took the break" (default: 5 min)
+```
+
+The `FULL_BREAK_DURATION` threshold determines how long you need to be away from Claude after a full break reminder before Vibe Check credits you with actually taking the break.
+
+See the [Configuration](/configuration/environment-variables) page for all options.
+
+## Next Steps
+
+- Learn about [Micro-Breaks](/features/micro-breaks) for quick eye and posture resets
+- Understand [Break Tracking](/features/break-tracking) to see how the plugin measures compliance
+- Explore [Hydration Reminders](/features/hydration-reminders) for cognitive performance

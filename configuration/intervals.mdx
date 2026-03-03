@@ -1,0 +1,77 @@
+---
+title: Interval Configuration
+description: Control how often Vibe Check reminders appear
+---
+
+Interval variables control how frequently each type of reminder is triggered. All values are in seconds.
+
+## Available Intervals
+
+<ParamField path="VIBE_CHECK_MICRO_INTERVAL" type="integer" default="1200">
+  Seconds between micro-break reminders (eyes, wrists, shoulder rolls).
+  
+  Default: `1200` seconds (20 minutes)
+  
+  Micro-breaks follow the **20-20-20 rule** endorsed by the American Academy of Ophthalmology: every 20 minutes, look at something 20 feet away for 20 seconds to reduce digital eye strain.
+</ParamField>
+
+<ParamField path="VIBE_CHECK_FULL_INTERVAL" type="integer" default="3000">
+  Seconds between full-break reminders (stand up, walk, full-body stretch).
+  
+  Default: `3000` seconds (50 minutes)
+  
+  Based on the **52-17 work-break ratio** from the DeskTime productivity study, which found that top performers work for approximately 52 minutes before taking a 17-minute break.
+</ParamField>
+
+<ParamField path="VIBE_CHECK_HYDRATION_INTERVAL" type="integer" default="1800">
+  Seconds between hydration reminders (water, snacks, caffeine check).
+  
+  Default: `1800` seconds (30 minutes)
+  
+  Regular hydration is critical for cognitive performance. Research shows that even 1-2% dehydration can impair performance by up to 25%.
+</ParamField>
+
+## How Intervals Work
+
+Vibe Check tracks three independent timers:
+- One for micro-breaks
+- One for full breaks  
+- One for hydration
+
+Each timer counts up from the last time that specific break type was taken. When a timer reaches its configured interval, a reminder fires.
+
+### Priority Order
+
+When multiple reminders are due simultaneously, Vibe Check uses this priority:
+
+1. **Full breaks** (highest priority)
+2. **Hydration reminders**
+3. **Micro-breaks** (lowest priority)
+
+Firing a full break resets all three timers, since a full break typically includes stretching, moving around, and an opportunity to hydrate.
+
+## Example: Testing Configuration
+
+From the [README](https://github.com/majidmanzarpour/vibe-check/blob/main/README.md), here's a real example for testing with faster intervals:
+
+```bash
+VIBE_CHECK_MICRO_INTERVAL=60 \
+VIBE_CHECK_HYDRATION_INTERVAL=120 \
+VIBE_CHECK_FULL_INTERVAL=180 \
+claude
+```
+
+This accelerated configuration will:
+- Fire micro-breaks every 60 seconds (1 minute)
+- Fire hydration reminders every 120 seconds (2 minutes)  
+- Fire full breaks every 180 seconds (3 minutes)
+
+<Tip>
+  Use shorter intervals like this when testing the plugin or if you want more frequent health reminders during intense coding sessions.
+</Tip>
+
+## Spontaneous Break Detection
+
+Vibe Check also detects when you naturally step away from your computer. If you're inactive for at least `VIBE_CHECK_GAP_THRESHOLD` seconds (default: 15 minutes) without a pending reminder, all three timers reset automatically.
+
+This means you get credit for taking breaks on your own, and won't be bombarded with reminders when you return.

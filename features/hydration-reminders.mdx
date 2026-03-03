@@ -1,0 +1,141 @@
+---
+title: Hydration Reminders
+description: Water and nutrition nudges every 30 minutes to maintain peak cognitive performance
+---
+
+## What are Hydration Reminders?
+
+Hydration reminders fire every **30 minutes** during your coding session to prompt you to drink water, check your caffeine intake, or grab a healthy snack.
+
+These reminders address:
+- **Cognitive performance** — maintaining optimal brain function
+- **Energy levels** — preventing crashes from dehydration or poor nutrition
+- **Long-term health** — building consistent hydration habits
+- **Break integration** — providing another reason to step away from the screen
+
+<Note>
+Even mild dehydration (1-2% body water loss) can impair cognitive performance by up to **25%**, according to a 2012 study in the Journal of Nutrition.
+</Note>
+
+## The Science Behind Hydration and Cognition
+
+Your brain is approximately 75% water, and it's highly sensitive to hydration status:
+
+### Performance Impact
+
+**1-2% dehydration** can lead to:
+- Reduced attention span and focus
+- Impaired short-term memory
+- Slower processing speed
+- Decreased decision-making ability
+- Increased perceived difficulty of tasks
+
+### Cognitive Function Study
+
+Research published in the *Journal of Nutrition* (2012) found that even **1-2% dehydration** cuts cognitive performance by up to **25%**. This includes:
+- Working memory tasks
+- Psychomotor performance
+- Attention and executive function
+
+For developers, this translates directly to:
+- Slower debugging
+- More errors in code
+- Difficulty holding complex logic in mind
+- Reduced problem-solving creativity
+
+<Tip>
+By the time you feel thirsty, you're already mildly dehydrated. Regular reminders help you stay ahead of thirst.
+</Tip>
+
+## Recommended Intake
+
+At a desk, you should aim to drink approximately:
+- **250ml (1 glass)** every 30 minutes
+- **500ml (2 glasses)** per hour of focused work
+- **2-3 liters total** across an 8-hour workday
+
+Factors that increase needs:
+- Caffeine consumption (mild diuretic effect)
+- Warm environment
+- High cognitive load (yes, thinking uses water!)
+
+## Example Hydration Tips
+
+Vibe Check provides a variety of hydration and nutrition reminders:
+
+### 💧 Water Time
+> Drink a full glass of water now. Even 1-2% dehydration cuts cognitive performance by up to 25%. Keep your bottle visible as a cue.
+
+### 🍎 Fuel Check
+> Grab a brain-friendly snack: nuts, berries, or apple with peanut butter. Complex carbs + protein = sustained focus without crashes.
+
+### ☕ Caffeine Check
+> If you're past your 3rd cup of coffee, switch to water or herbal tea. Caffeine after 2pm disrupts sleep, which tanks tomorrow's coding.
+
+### 🚰 Refill Ritual
+> Get up and refill your water bottle. The walk counts as a micro-break too. Two birds, one trip to the kitchen.
+
+### 🍵 Warm Drink
+> Try warm water with lemon or herbal tea. Warm beverages are absorbed faster and the ritual of making them is a built-in micro-break.
+
+### 🧃 Hydration Math
+> You should drink roughly 1 glass (250ml) every 30 min at a desk. Check your bottle — are you on track for today?
+
+## How Reminders Appear
+
+Hydration reminders display the same way as other Vibe Check reminders:
+
+```
+────────────────────────────────────────────────────────────────────────────────
+⏰ VIBE CHECK — 💧 Water Time (30 min since last break)
+────────────────────────────────────────────────────────────────────────────────
+Drink a full glass of water now. Even 1-2% dehydration cuts cognitive performance
+by up to 25%. Keep your bottle visible as a cue.
+────────────────────────────────────────────────────────────────────────────────
+```
+
+<Info>
+Hydration reminders include not just water, but also nutrition tips for brain-friendly snacks and caffeine management.
+</Info>
+
+## Priority in the Reminder System
+
+Vibe Check checks reminders in priority order:
+
+1. **Full breaks** (highest priority — resets all timers)
+2. **Hydration reminders** (medium priority)
+3. **Micro-breaks** (lowest priority)
+
+This means if both a hydration reminder and micro-break are due, you'll see the hydration reminder first. However, if a full break is due, it takes precedence and resets the hydration timer.
+
+## Configuration
+
+Customize hydration reminder timing:
+
+```bash
+VIBE_CHECK_HYDRATION_INTERVAL=1800         # Seconds between reminders (default: 30 min)
+VIBE_CHECK_HYDRATION_BREAK_DURATION=120    # Gap to credit as "took the break" (default: 2 min)
+```
+
+The `HYDRATION_BREAK_DURATION` determines how long you need to be away from Claude after a reminder before Vibe Check assumes you actually went to get water.
+
+See the [Configuration](/configuration/environment-variables) page for all available options.
+
+## Building Healthy Habits
+
+Hydration reminders aren't just about the immediate session — they help build long-term habits:
+
+- **Cue association** — Linking coding work with hydration creates automatic behaviors
+- **Visual cues** — The reminder prompts you to keep your water bottle visible
+- **Ritual building** — Regular refill trips become a natural part of your workflow
+- **Awareness training** — Over time, you become more attuned to your body's hydration signals
+
+<Tip>
+Keep a large (1L+) water bottle at your desk. A visible, accessible water source dramatically increases intake.
+</Tip>
+
+## Next Steps
+
+- Learn about [Micro-Breaks](/features/micro-breaks) for eye and posture health
+- Understand [Break Tracking](/features/break-tracking) to see how compliance is measured
+- Explore [Full Breaks](/features/full-breaks) for comprehensive movement sessions

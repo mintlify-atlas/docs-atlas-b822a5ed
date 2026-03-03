@@ -1,0 +1,317 @@
+---
+title: "Development Guide"
+description: "Local development setup, testing, debugging, and contribution guidelines for Vibe Check"
+---
+
+## Local Development Setup
+
+Clone and install the plugin in development mode:
+
+```bash
+git clone https://github.com/majidmanzarpour/vibe-check.git
+cd vibe-check
+claude --plugin-dir /path/to/vibe-check
+```
+
+The `--plugin-dir` flag loads the plugin directly from your local directory instead of installing from the marketplace.
+
+## Plugin Directory Structure
+
+```
+vibe-check/
+├── .claude-plugin/
+│   ├── hooks/
+│   │   └── hooks.json          # Hook registration
+│   ├── scripts/
+│   │   ├── shared.py           # State management primitives
+│   │   ├── session_start.py    # SessionStart hook
+│   │   ├── check_reminder.py   # UserPromptSubmit hook
+│   │   ├── stop_hook.py        # Stop hook
+│   │   └── tips.json           # Health tip database
+│   ├── skills/
+│   │   └── health.md           # On-demand health reference
+│   └── CLAUDE.md               # Model instructions
+├── README.md
+└── LICENSE
+```
+
+## Testing with Shorter Intervals
+
+Default intervals are long (20-50 minutes). For rapid testing, override with environment variables:
+
+```bash
+VIBE_CHECK_MICRO_INTERVAL=60 \
+VIBE_CHECK_HYDRATION_INTERVAL=120 \
+VIBE_CHECK_FULL_INTERVAL=180 \
+claude --plugin-dir /path/to/vibe-check
+```
+
+This configuration fires:
+- Micro-breaks every 60 seconds
+- Hydration reminders every 2 minutes
+- Full breaks every 3 minutes
+
+### All Test Variables
+
+```bash
+# Reminder intervals
+VIBE_CHECK_MICRO_INTERVAL=60        # 1 min
+VIBE_CHECK_HYDRATION_INTERVAL=120   # 2 min
+VIBE_CHECK_FULL_INTERVAL=180        # 3 min
+
+# Compliance thresholds
+VIBE_CHECK_MICRO_BREAK_DURATION=10       # 10 sec gap = took the break
+VIBE_CHECK_HYDRATION_BREAK_DURATION=15   # 15 sec gap
+VIBE_CHECK_FULL_BREAK_DURATION=20        # 20 sec gap
+
+# Session behavior
+VIBE_CHECK_GAP_THRESHOLD=30         # 30 sec = spontaneous break
+VIBE_CHECK_STALE_THRESHOLD=300      # 5 min = stale session
+
+claude --plugin-dir /path/to/vibe-check
+```
+
+## State File Location for Debugging
+
+The shared state file is located at:
+
+```
+~/.claude/vibe-check-state.json
+```
+
+Inspect it to debug timer behavior:
+
+```bash
+cat ~/.claude/vibe-check-state.json | jq .
+```
+
+Example output:
+
+```json
+{
+  "session_start": 1709486400.123,
+  "last_micro": 1709486520.456,
+  "last_full": 1709486400.123,
+  "last_hydration": 1709486460.789,
+  "reminder_count": 3,
+  "last_active": 1709486700.012,
+  "last_response_end": 1709486695.345,
+  "pending_break": {
+    "type": "micro",
+    "fired_at": 1709486520.456
+  },
+  "tip_index": {
+    "micro_break": 2,
+    "full_break": 1,
+    "hydration": 1
+  },
+  "last_reminder_fired_at": 1709486520.456
+}
+```
+
+### Manually Reset State
+
+Delete the state file to start fresh:
+
+```bash
+rm ~/.claude/vibe-check-state.json
+```
+
+The next session will create a fresh state automatically.
+
+## Debugging Hook Execution
+
+Add debug prints to scripts:
+
+```python
+import sys
+
+def main():
+    print("DEBUG: check_reminder.py fired", file=sys.stderr)
+    # ... rest of logic ...
+```
+
+Stderr output appears in the Claude terminal.
+
+### Hook Output Format
+
+Hooks communicate via stdout:
+
+- **SessionStart** — Plain text message
+- **UserPromptSubmit** — JSON with `hookSpecificOutput.additionalContext`
+- **Stop** — Silent (no output)
+
+Test hook output manually:
+
+```bash
+python3 .claude-plugin/scripts/session_start.py
+python3 .claude-plugin/scripts/check_reminder.py
+python3 .claude-plugin/scripts/stop_hook.py
+```
+
+## Testing Break Compliance
+
+1. Start Claude with short intervals
+2. Send a prompt to trigger a reminder
+3. Wait for the compliance threshold (default: 10s for micro, 15s for hydration, 20s for full in test mode)
+4. Send another prompt
+5. Inspect state file — the timer should have reset
+
+Without waiting:
+
+```bash
+# t=0: Start session, send prompt → micro-break reminder fires
+# t=5s: Send another prompt (gap < 10s)
+# Result: Timer doesn't reset, another reminder fires
+```
+
+With proper gap:
+
+```bash
+# t=0: Start session, send prompt → micro-break reminder fires
+# t=15s: Send another prompt (gap > 10s)
+# Result: Timer resets, no immediate reminder
+```
+
+## Testing Spontaneous Breaks
+
+Set `VIBE_CHECK_GAP_THRESHOLD=30` (30 seconds):
+
+```bash
+# t=0: Send prompt
+# t=35s: Send another prompt (gap > 30s, no pending reminder)
+# Result: All timers reset automatically
+```
+
+Check state file after:
+
+```bash
+cat ~/.claude/vibe-check-state.json | jq '.last_micro, .last_full, .last_hydration'
+```
+
+All three should be recent timestamps.
+
+## Testing Stale Sessions
+
+Set `VIBE_CHECK_STALE_THRESHOLD=60` (1 minute):
+
+```bash
+# t=0: Start session
+# t=70s: Send prompt (gap > 60s)
+# Result: State resets to fresh, all timers restart
+```
+
+## Locking Behavior
+
+Test concurrent access by opening two Claude sessions simultaneously with the same plugin:
+
+```bash
+# Terminal 1
+claude --plugin-dir /path/to/vibe-check
+
+# Terminal 2
+claude --plugin-dir /path/to/vibe-check
+```
+
+Both sessions share the same state file. Send prompts in both and verify:
+- No corruption in `~/.claude/vibe-check-state.json`
+- Timers remain consistent across sessions
+- Lock file exists: `~/.claude/vibe-check-state.json.lock`
+
+## Modifying Tips
+
+Edit `scripts/tips.json` to customize health tips:
+
+```json
+{
+  "micro_break": [
+    {
+      "title": "Custom Micro Break",
+      "tip": "Your custom tip here."
+    }
+  ],
+  "full_break": [...],
+  "hydration": [...]
+}
+```
+
+Restart Claude to load the new tips.
+
+## Updating Hook Configuration
+
+Edit `hooks/hooks.json` to modify hook behavior. After changes:
+
+1. Exit Claude
+2. Restart Claude
+3. Hooks reload at session start
+
+Hooks are **not** hot-reloaded mid-session.
+
+## Uninstall Process
+
+### From Marketplace Installation
+
+```bash
+/plugin uninstall vibe-check@vibe-check
+/plugin marketplace remove vibe-check
+```
+
+### From Local Development
+
+Just stop using `--plugin-dir`:
+
+```bash
+claude  # without --plugin-dir flag
+```
+
+### Clean Up State File
+
+The state file persists after uninstall:
+
+```bash
+rm ~/.claude/vibe-check-state.json
+rm ~/.claude/vibe-check-state.json.lock
+```
+
+## Contributing
+
+Contributions welcome! Areas for improvement:
+
+- Additional health tips in `tips.json`
+- Expanded health reference in `skills/health.md`
+- Break customization features
+- Statistics tracking (total breaks taken, compliance rate)
+- Notification sounds or visual indicators
+
+### Submission Checklist
+
+1. Test with default intervals
+2. Test with short intervals (rapid testing)
+3. Test concurrent sessions (locking)
+4. Test stale session detection
+5. Test break compliance logic
+6. Verify no state file corruption
+7. Document new environment variables
+
+## File Locations Reference
+
+| Path | Purpose |
+|------|--------|
+| `~/.claude/vibe-check-state.json` | Shared session state |
+| `~/.claude/vibe-check-state.json.lock` | File lock for state coordination |
+| `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/` | Plugin installation directory |
+| `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/hooks.json` | Hook registration |
+| `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/scripts/` | Python implementation |
+| `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/skills/` | On-demand skills |
+
+## Python Dependencies
+
+Vibe Check uses only Python standard library:
+
+- `json` — State file I/O
+- `os` — Path handling, environment variables
+- `time` — Timestamps
+- `fcntl` — File locking
+- `textwrap` — Reminder formatting
+
+No external dependencies required.

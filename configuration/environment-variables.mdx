@@ -1,0 +1,63 @@
+---
+title: Environment Variables
+description: Complete reference for all Vibe Check configuration options
+---
+
+Vibe Check can be customized using environment variables prefixed with `VIBE_CHECK_`. All timing values are in seconds.
+
+## All Configuration Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VIBE_CHECK_MICRO_INTERVAL` | `1200` (20 min) | Seconds between micro-breaks (eyes, wrists) |
+| `VIBE_CHECK_FULL_INTERVAL` | `3000` (50 min) | Seconds between full breaks (stand, stretch) |
+| `VIBE_CHECK_HYDRATION_INTERVAL` | `1800` (30 min) | Seconds between hydration reminders |
+| `VIBE_CHECK_MICRO_BREAK_DURATION` | `60` (1 min) | Gap after a micro reminder to credit as "took the break" |
+| `VIBE_CHECK_HYDRATION_BREAK_DURATION` | `120` (2 min) | Gap after a hydration reminder to credit as "took the break" |
+| `VIBE_CHECK_FULL_BREAK_DURATION` | `300` (5 min) | Gap after a full-break reminder to credit as "took the break" |
+| `VIBE_CHECK_GAP_THRESHOLD` | `900` (15 min) | Seconds of inactivity before crediting as a spontaneous break |
+| `VIBE_CHECK_STALE_THRESHOLD` | `3600` (60 min) | Seconds of inactivity before a new session resets timers |
+| `VIBE_CHECK_BOX_WIDTH` | `80` | Inner display width of the reminder box in columns |
+
+## How to Set Environment Variables
+
+You can set environment variables when launching Claude Code:
+
+```bash
+VIBE_CHECK_MICRO_INTERVAL=900 VIBE_CHECK_FULL_INTERVAL=2400 claude
+```
+
+Or export them in your shell profile:
+
+```bash
+export VIBE_CHECK_MICRO_INTERVAL=900
+export VIBE_CHECK_FULL_INTERVAL=2400
+export VIBE_CHECK_HYDRATION_INTERVAL=1500
+```
+
+## Testing with Shorter Intervals
+
+For testing or faster reminders, you can use much shorter intervals:
+
+```bash
+VIBE_CHECK_MICRO_INTERVAL=60 VIBE_CHECK_HYDRATION_INTERVAL=120 VIBE_CHECK_FULL_INTERVAL=180 claude
+```
+
+This configuration will:
+- Fire micro-breaks every 60 seconds (1 minute)
+- Fire hydration reminders every 120 seconds (2 minutes)
+- Fire full breaks every 180 seconds (3 minutes)
+
+<Warning>
+  **Restart Required**: Changes to environment variables only take effect when you restart Claude Code. The plugin hooks are registered at session start and won't refresh mid-session.
+</Warning>
+
+## Variable Categories
+
+The configuration variables are organized into three main categories:
+
+1. **[Intervals](/configuration/intervals)** - Control how often reminders appear
+2. **[Break Durations](/configuration/break-durations)** - Control break compliance detection
+3. **Display Settings** - Control visual appearance (`VIBE_CHECK_BOX_WIDTH`)
+
+See the individual pages for detailed explanations of each variable type.

@@ -1,0 +1,140 @@
+---
+title: "System Architecture"
+description: "Deep dive into Vibe Check's plugin structure, directories, and state management"
+---
+
+## Plugin Structure
+
+Vibe Check follows the standard Claude Code plugin layout:
+
+```
+.claude-plugin/
+├── hooks/
+│   └── hooks.json          # Hook registration
+├── scripts/
+│   ├── shared.py           # State management
+│   ├── session_start.py    # SessionStart hook
+│   ├── check_reminder.py   # UserPromptSubmit hook
+│   ├── stop_hook.py        # Stop hook
+│   └── tips.json           # Health tip database
+├── skills/
+│   └── health.md           # On-demand health reference
+└── CLAUDE.md               # Model instructions
+```
+
+## Directory Overview
+
+### hooks/
+
+Contains `hooks.json`, which registers three lifecycle hooks:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/session_start.py\""
+      }]
+    }],
+    "UserPromptSubmit": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/check_reminder.py\""
+      }]
+    }],
+    "Stop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/stop_hook.py\""
+      }]
+    }]
+  }
+}
+```
+
+All hooks use an empty `matcher` to fire on every event.
+
+### scripts/
+
+The Python implementation:
+
+- **shared.py** — Core state management primitives (load, save, lock)
+- **session_start.py** — Initializes or joins existing session
+- **check_reminder.py** — Core reminder engine with break detection
+- **stop_hook.py** — Records response end time for gap calculation
+- **tips.json** — Rotating health tips organized by category
+
+### skills/
+
+Contains `health.md`, invoked via `/vibe-check:health` for on-demand health reference.
+
+## State File Location
+
+Vibe Check stores session state at:
+
+```
+~/.claude/vibe-check-state.json
+```
+
+This path is defined in `scripts/shared.py:10`:
+
+```python
+STATE_PATH = os.path.expanduser("~/.claude/vibe-check-state.json")
+```
+
+A lock file is created at `~/.claude/vibe-check-state.json.lock` to coordinate access between concurrent Claude sessions.
+
+## Hook System Flow
+
+```
+┌─────────────────────────────────────────────┐
+│  User starts Claude session                 │
+└────────────────┬────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│  SessionStart hook                          │
+│  - Check if active session exists           │
+│  - Join or create fresh state               │
+│  - Print welcome message                    │
+└────────────────┬────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│  User sends prompt                          │
+└────────────────┬────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│  UserPromptSubmit hook                      │
+│  - Check stale session                      │
+│  - Check break compliance                   │
+│  - Check spontaneous breaks                 │
+│  - Check timers (full → hydration → micro)  │
+│  - Fire reminder if due                     │
+└────────────────┬────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│  Claude generates response                  │
+└────────────────┬────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│  Stop hook                                  │
+│  - Record last_response_end timestamp       │
+│  - Update last_active timestamp             │
+└─────────────────────────────────────────────┘
+```
+
+## Cross-Session Coordination
+
+Multiple Claude sessions share the same state file. The locking mechanism ensures atomic reads/writes. If you start a second session within 60 minutes of the last activity, it inherits all timers and continues tracking seamlessly.
+
+## Plugin Root Variable
+
+Hook commands use `${CLAUDE_PLUGIN_ROOT}` to reference scripts relative to the plugin installation directory, ensuring portability across different installations.

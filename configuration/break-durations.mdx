@@ -1,0 +1,122 @@
+---
+title: Break Duration Thresholds
+description: Configure break compliance detection and session behavior
+---
+
+Break duration variables control how Vibe Check determines whether you actually took a suggested break. These thresholds measure the gap between Claude's response ending and your next prompt.
+
+## Break Compliance Thresholds
+
+After firing a reminder, Vibe Check measures how long you're away. If the gap meets or exceeds the threshold for that break type, it credits you with taking the break and resets the appropriate timer.
+
+<ParamField path="VIBE_CHECK_MICRO_BREAK_DURATION" type="integer" default="60">
+  Minimum gap (in seconds) after a micro-break reminder to credit as "took the break".
+  
+  Default: `60` seconds (1 minute)
+  
+  Micro-breaks are quick eye rests, wrist stretches, or shoulder rolls that only take a minute or two.
+</ParamField>
+
+<ParamField path="VIBE_CHECK_HYDRATION_BREAK_DURATION" type="integer" default="120">
+  Minimum gap (in seconds) after a hydration reminder to credit as "took the break".
+  
+  Default: `120` seconds (2 minutes)
+  
+  Gives you time to grab water, refill a glass, or prepare a quick snack.
+</ParamField>
+
+<ParamField path="VIBE_CHECK_FULL_BREAK_DURATION" type="integer" default="300">
+  Minimum gap (in seconds) after a full-break reminder to credit as "took the break".
+  
+  Default: `300` seconds (5 minutes)
+  
+  Full breaks involve standing up, walking around, and doing full-body stretches. Five minutes is the minimum to get real benefit.
+</ParamField>
+
+## Session Behavior Thresholds
+
+<ParamField path="VIBE_CHECK_GAP_THRESHOLD" type="integer" default="900">
+  Seconds of inactivity (without a pending reminder) before crediting as a spontaneous break.
+  
+  Default: `900` seconds (15 minutes)
+  
+  If you step away for 15+ minutes on your own, Vibe Check resets all timers automatically. This prevents reminder spam when you return from lunch or a meeting.
+</ParamField>
+
+<ParamField path="VIBE_CHECK_STALE_THRESHOLD" type="integer" default="3600">
+  Seconds of inactivity before a new session resets all timers.
+  
+  Default: `3600` seconds (60 minutes)
+  
+  After 60 minutes of inactivity, the next Claude Code session starts fresh with all timers reset. This handles cases like leaving your editor open overnight.
+</ParamField>
+
+## Display Configuration
+
+<ParamField path="VIBE_CHECK_BOX_WIDTH" type="integer" default="80">
+  Inner display width of the reminder box in columns.
+  
+  Default: `80` characters
+  
+  Controls the width of the horizontal lines and text wrapping in reminder cards. Adjust if you have a narrower or wider terminal.
+</ParamField>
+
+## How Break Compliance Works
+
+Vibe Check uses a sophisticated break-tracking system:
+
+1. **Reminder fires** - When a timer reaches its interval, a reminder is injected into your Claude conversation
+2. **Pending state** - The system marks that break type as "pending" and records the timestamp
+3. **Gap measurement** - When you send your next prompt, Vibe Check calculates the gap since Claude's last response
+4. **Compliance check**:
+   - If the gap meets the threshold for that break type → timer resets, pending cleared
+   - If the gap is shorter → no credit, but pending cleared (you'll get another reminder when the interval elapses)
+   - If the gap exceeds `VIBE_CHECK_GAP_THRESHOLD` → all timers reset (spontaneous break)
+
+### Example Scenario
+
+```bash
+# You get a micro-break reminder at 12:00 PM
+# Claude responds at 12:00:30 PM
+# You send your next prompt at 12:01:45 PM
+# Gap = 75 seconds
+```
+
+Since 75 seconds ≥ 60 seconds (`VIBE_CHECK_MICRO_BREAK_DURATION`), you get credit for taking the micro-break. The micro-break timer resets to 12:01:45 PM.
+
+### When Full Breaks Reset Everything
+
+When you complete a full break, Vibe Check resets **all three timers** (micro, hydration, and full):
+
+```python
+if break_type == "full":
+    state["last_full"] = now
+    state["last_micro"] = now
+    state["last_hydration"] = now
+```
+
+This is because a proper full break (5+ minutes of standing, walking, stretching) typically includes opportunities to rest your eyes, stretch your wrists, and grab water.
+
+## Tuning for Your Workflow
+
+If you find break compliance too strict or too lenient, adjust these thresholds:
+
+```bash
+# More lenient (credit breaks faster)
+VIBE_CHECK_MICRO_BREAK_DURATION=30 \
+VIBE_CHECK_HYDRATION_BREAK_DURATION=60 \
+VIBE_CHECK_FULL_BREAK_DURATION=180 \
+claude
+```
+
+```bash
+# More strict (require longer breaks)
+VIBE_CHECK_MICRO_BREAK_DURATION=90 \
+VIBE_CHECK_HYDRATION_BREAK_DURATION=180 \
+VIBE_CHECK_FULL_BREAK_DURATION=420 \
+claude
+```
+
+<Info>
+  The default thresholds are based on evidence-based health research and ergonomic best practices. Adjust them to match your personal workflow, but don't skip breaks entirely!
+</Info>

@@ -1,0 +1,91 @@
+---
+title: Micro-Breaks
+description: Quick 1-minute breaks every 20 minutes for eye rest, wrist stretches, and posture resets
+---
+
+## What are Micro-Breaks?
+
+Micro-breaks are brief 1-minute breaks that fire every **20 minutes** during your coding session. They're designed to prevent digital eye strain, repetitive stress injuries, and postural fatigue from prolonged screen time.
+
+These quick interventions target:
+- **Eye health** — reducing strain from constant focus on screens
+- **Wrist and hand health** — preventing carpal tunnel and RSI
+- **Neck and shoulder tension** — reversing forward head posture
+
+<Note>
+The 20-minute interval is based on the **20-20-20 rule** endorsed by the American Academy of Ophthalmology for reducing digital eye strain.
+</Note>
+
+## The 20-20-20 Rule
+
+The 20-20-20 rule is a simple technique to prevent eye fatigue:
+
+- Every **20 minutes** of screen time
+- Look at something **20 feet away** (or more)
+- For at least **20 seconds**
+
+This gives your eye muscles a break from the constant near-focus required for screen work. Following this rule can significantly reduce symptoms like dry eyes, blurred vision, and headaches.
+
+<Tip>
+Combine the 20-20-20 rule with rapid blinking (15-20 times) to re-lubricate your eyes after each break.
+</Tip>
+
+## Example Micro-Break Tips
+
+Vibe Check rotates through a variety of micro-break exercises. Here are some examples from the plugin:
+
+### 👁️ Eye Reset
+> Look at something 20+ feet away for 20 seconds (the 20-20-20 rule). Then blink rapidly 15 times to re-lubricate your eyes.
+
+### 🤲 Wrist Stretch
+> Extend one arm, palm up. Gently pull fingers back for 15 sec. Flip palm down, press fingers toward floor for 15 sec. Both sides.
+
+### 🧘 Chin Tuck
+> Sit tall. Pull your head straight back (make a double chin). Hold 5 seconds, repeat 5 times. Fixes forward head posture from screen staring.
+
+### 😌 Palming
+> Rub your hands together until warm. Cup them gently over your closed eyes for 30 seconds. Breathe deeply. Don't press on your eyeballs.
+
+### 🙆 Shoulder Release
+> Raise your shoulders to your ears, hold 3 seconds, then drop them. Roll backward 5 times, forward 5 times. Release that tension.
+
+### 🤸 Prayer Stretch
+> Press palms together at chest level. Slowly lower your hands toward your desk keeping palms touching until you feel the stretch. Hold 7 sec, repeat 3 times.
+
+### 🔄 Near-Far Focus
+> Hold your thumb 6 inches from your face, focus on it for 5 sec. Shift focus to something 20+ feet away for 5 sec. Repeat 10 times.
+
+## How Reminders Appear
+
+When a micro-break is due, you'll see a reminder card in your Claude conversation:
+
+```
+────────────────────────────────────────────────────────────────────────────────
+⏰ VIBE CHECK — 👁️ Eye Reset (20 min since last break)
+────────────────────────────────────────────────────────────────────────────────
+Look at something 20+ feet away for 20 seconds (the 20-20-20 rule). Then blink
+rapidly 15 times to re-lubricate your eyes.
+────────────────────────────────────────────────────────────────────────────────
+```
+
+Claude will also add a friendly one-sentence encouragement after the reminder box, then seamlessly continue with your coding task.
+
+<Info>
+The reminder shows how long it's been since your last break, helping you stay aware of your session duration.
+</Info>
+
+## Configuration
+
+You can customize the micro-break interval using environment variables:
+
+```bash
+VIBE_CHECK_MICRO_INTERVAL=900  # 15 minutes instead of 20
+```
+
+See the [Configuration](/configuration/environment-variables) page for all available options.
+
+## Next Steps
+
+- Learn about [Full Breaks](/features/full-breaks) for longer movement sessions
+- Understand [Break Tracking](/features/break-tracking) to see how compliance is measured
+- Explore [Hydration Reminders](/features/hydration-reminders) for optimal cognitive performance

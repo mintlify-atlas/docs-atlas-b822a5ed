@@ -1,0 +1,112 @@
+---
+title: Installation
+description: Get Vibe Check up and running in seconds
+---
+
+# Installing Vibe Check
+
+Vibe Check is available in the Claude Code plugin marketplace. Installation takes just two commands.
+
+<Steps>
+  <Step title="Add from marketplace">
+    Add the Vibe Check repository to your plugin sources:
+    
+    ```bash
+    /plugin marketplace add majidmanzarpour/vibe-check
+    ```
+  </Step>
+  
+  <Step title="Install the plugin">
+    Install Vibe Check to your Claude Code environment:
+    
+    ```bash
+    /plugin install vibe-check@vibe-check
+    ```
+  </Step>
+  
+  <Step title="Start a new session">
+    Health tracking starts automatically on your next Claude Code session. You'll see a welcome message:
+    
+    ```
+    ✨ Vibe Check health tracking is active for this session.
+    I'll nudge you to stretch, hydrate, and rest your eyes.
+    Let's code healthy!
+    ```
+  </Step>
+</Steps>
+
+<Info>
+  That's it! No configuration required. Vibe Check will begin monitoring your session and deliver reminders at evidence-based intervals.
+</Info>
+
+## When Does Tracking Start?
+
+Tracking begins automatically when you start a new Claude Code session after installing the plugin. The `SessionStart` hook initializes the state file and begins monitoring:
+
+- If this is your first session, fresh timers are created
+- If an active session exists (within the last 60 minutes), Vibe Check joins seamlessly and continues tracking from where you left off
+- Multi-session support means all your Claude Code windows share the same health timers
+
+<Note>
+  The session start message will confirm whether you're starting fresh or joining an existing session:
+  
+  **New session:**
+  ```
+  ✨ Vibe Check health tracking is active for this session.
+  I'll nudge you to stretch, hydrate, and rest your eyes.
+  Let's code healthy!
+  ```
+  
+  **Joined session:**
+  ```
+  ✨ Vibe Check joined an active session.
+  Health tracking continues where you left off!
+  ```
+</Note>
+
+## Updating the Plugin
+
+To update Vibe Check to the latest version:
+
+<Steps>
+  <Step title="Update the plugin">
+    Use the standard plugin update command:
+    
+    ```bash
+    /plugin update vibe-check@vibe-check
+    ```
+  </Step>
+  
+  <Step title="Restart your session">
+    After updating, restart your Claude Code session so the new hooks are loaded.
+    
+    <Warning>
+      Hooks are registered at session start and won't refresh mid-session. You must restart Claude Code to activate plugin updates.
+    </Warning>
+  </Step>
+</Steps>
+
+## Local Development
+
+If you're developing or testing changes to Vibe Check locally, you can run Claude Code with a custom plugin directory:
+
+```bash
+claude --plugin-dir /path/to/vibe-check
+```
+
+This loads your local version of the plugin instead of the marketplace version, perfect for testing modifications or contributing improvements.
+
+<Tip>
+  Want to customize reminder intervals? Check out the [Configuration](/configuration/environment-variables) page for environment variables you can set.
+</Tip>
+
+## Uninstalling
+
+To remove Vibe Check:
+
+```bash
+/plugin uninstall vibe-check@vibe-check
+/plugin marketplace remove vibe-check
+```
+
+The state file at `~/.claude/vibe-check-state.json` can be safely deleted after uninstall if you want to remove all tracking data.

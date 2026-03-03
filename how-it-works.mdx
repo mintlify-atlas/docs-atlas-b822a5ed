@@ -1,0 +1,217 @@
+---
+title: How It Works
+description: Understanding Vibe Check's intelligent health tracking system
+---
+
+# How Vibe Check Works
+
+Vibe Check uses Claude Code's hook system to monitor your coding sessions and deliver timely health reminders. The plugin operates entirely within your Claude conversation — no system popups, no OS notifications, just gentle in-context nudges.
+
+## Architecture Overview
+
+Vibe Check consists of three core components:
+
+1. **SessionStart Hook** — Initializes or joins session state (`session_start.py`)
+2. **UserPromptSubmit Hook** — Checks timers and fires reminders (`check_reminder.py`)
+3. **Shared State File** — Persistent tracking across sessions (`~/.claude/vibe-check-state.json`)
+
+<Info>
+  All timing logic runs in Python scripts, with state managed in a shared JSON file that supports multi-session tracking.
+</Info>
+
+## Session Lifecycle
+
+<Steps>
+  <Step title="SessionStart Hook Executes">
+    When you start a Claude Code session, the `SessionStart` hook loads or creates the shared state file.
+    
+    ```python
+    # session_start.py:24-30
+    if existing and (now - existing["last_active"]) < STALE_THRESHOLD:
+        existing["last_active"] = now
+        state = existing
+        msg = (
+            "✨ Vibe Check joined an active session. "
+            "Health tracking continues where you left off!"
+        )
+    ```
+    
+    **Logic:**
+    - If an active session exists (activity within the last 60 minutes), join it without resetting timers
+    - If no recent activity, start fresh with new timers
+    - This enables seamless multi-window support
+  </Step>
+  
+  <Step title="Every Prompt Triggers Check">
+    Each time you send a prompt, the `UserPromptSubmit` hook runs `check_reminder.py` to evaluate elapsed time since your last breaks.
+    
+    The script checks three timers in priority order:
+    1. **Full break** (50 minutes) — highest priority
+    2. **Hydration** (30 minutes) — medium priority
+    3. **Micro-break** (20 minutes) — lowest priority
+  </Step>
+  
+  <Step title="Reminder Formatted and Displayed">
+    If you're due for a break, the hook formats a reminder with Unicode box-drawing characters:
+    
+    ```python
+    # check_reminder.py:46-56
+    def format_reminder(tip, elapsed_seconds):
+        elapsed_min = int(elapsed_seconds / 60)
+        header = f"⏰ VIBE CHECK — {tip['title']} ({elapsed_min} min since last break)"
+        body = tip["tip"]
+        line = "─" * BOX_WIDTH
+        body = "\n".join(textwrap.wrap(body, width=BOX_WIDTH))
+        parts = [line, header, line, body, line]
+        box = "\n".join(parts)
+        return box
+    ```
+    
+    Claude receives instructions to output the box exactly as-is, preserving all formatting.
+  </Step>
+  
+  <Step title="Break Compliance Tracked">
+    After firing a reminder, Vibe Check monitors whether you actually took the break by measuring the gap before your next prompt.
+    
+    ```python
+    # check_reminder.py:86-103
+    if pending:
+        break_type = pending.get("type")
+        threshold = COMPLIANCE_THRESHOLDS.get(break_type, 120)
+        if response_gap >= threshold:
+            # User took the break — reset that timer
+            if break_type == "full":
+                state["last_full"] = now
+                state["last_micro"] = now
+                state["last_hydration"] = now
+    ```
+    
+    **Compliance thresholds:**
+    - Micro-break: 60 seconds (1 minute)
+    - Hydration: 120 seconds (2 minutes)
+    - Full break: 300 seconds (5 minutes)
+  </Step>
+</Steps>
+
+## Intelligent Break Detection
+
+Vibe Check includes sophisticated logic to handle real-world coding patterns:
+
+### Break Compliance Detection
+
+After firing a reminder, the system measures whether you actually took the break:
+
+- **Gap measurement** — calculates time between Claude's last response and your next prompt
+- **Threshold comparison** — if the gap exceeds the break duration threshold, the timer resets
+- **Type-specific reset** — full breaks reset all timers, micro and hydration breaks reset only their specific timer
+
+```python
+# check_reminder.py:20-22
+MICRO_INTERVAL = int(os.environ.get("VIBE_CHECK_MICRO_INTERVAL", 1200))  # 20 min
+FULL_INTERVAL = int(os.environ.get("VIBE_CHECK_FULL_INTERVAL", 3000))   # 50 min
+HYDRATION_INTERVAL = int(os.environ.get("VIBE_CHECK_HYDRATION_INTERVAL", 1800))  # 30 min
+```
+
+### Spontaneous Break Detection
+
+If you step away from your computer without a pending reminder:
+
+```python
+# check_reminder.py:106-110
+elif response_gap >= SPONTANEOUS_BREAK_THRESHOLD:
+    state["last_micro"] = now
+    state["last_full"] = now
+    state["last_hydration"] = now
+```
+
+- **15+ minute gaps** are automatically credited as spontaneous breaks
+- All timers reset — you get a fresh start when you return
+- No reminder fires since you've already taken time away
+
+### Stale Session Handling
+
+```python
+# check_reminder.py:76-80
+if now - state.get("last_active", now) >= STALE_THRESHOLD:
+    state = fresh_state()
+    save_state(state)
+    return
+```
+
+- **60 minutes of inactivity** marks a session as stale
+- Next session starts with fresh timers
+- Prevents inappropriate reminders after long breaks (overnight, lunch, etc.)
+
+## Visual Reminder Format
+
+Reminders appear as structured boxes with horizontal lines:
+
+```
+────────────────────────────────────────────────────────────────────────────────
+⏰ VIBE CHECK — 💧 Hydration Check (30 min since last break)
+────────────────────────────────────────────────────────────────────────────────
+Time for water! Grab a glass and hydrate. If you've been drinking coffee or tea,
+balance it with plain water.
+────────────────────────────────────────────────────────────────────────────────
+```
+
+**Format details:**
+- Unicode box-drawing character `─` (U+2500) for horizontal lines
+- Default width of 80 columns (configurable via `VIBE_CHECK_BOX_WIDTH`)
+- Emoji indicators for break type (👁️ eyes, 🙌 stretch, 💧 hydration)
+- Elapsed time shown in the header
+- Tips rotate automatically to provide variety
+
+## Multi-Session Support
+
+Vibe Check uses a shared state file (`~/.claude/vibe-check-state.json`) that enables:
+
+- **Cross-session tracking** — all Claude Code windows share the same timers
+- **Seamless joining** — new sessions within 60 minutes continue existing tracking
+- **File locking** — prevents race conditions when multiple sessions write state simultaneously
+- **Deduplication** — 30-second window prevents the same reminder firing in parallel sessions
+
+```python
+# check_reminder.py:113-117
+DEDUP_WINDOW = 30  # seconds
+if now - state.get("last_reminder_fired_at", 0) < DEDUP_WINDOW:
+    state["last_active"] = now
+    save_state(state)
+    return
+```
+
+## State Management
+
+The state file tracks:
+
+```json
+{
+  "last_micro": 1234567890.123,
+  "last_full": 1234567890.123,
+  "last_hydration": 1234567890.123,
+  "last_active": 1234567890.123,
+  "last_response_end": 1234567890.123,
+  "pending_break": {
+    "type": "micro",
+    "fired_at": 1234567890.123
+  },
+  "reminder_count": 5,
+  "last_reminder_fired_at": 1234567890.123,
+  "tip_index": {
+    "micro_break": 2,
+    "full_break": 1,
+    "hydration": 3
+  }
+}
+```
+
+**Key fields:**
+- `last_micro`, `last_full`, `last_hydration` — timestamps of last break for each type
+- `pending_break` — tracks active reminder awaiting compliance check
+- `tip_index` — ensures tips rotate through the full list before repeating
+- `last_response_end` — enables gap measurement for break compliance
+- `reminder_count` — total reminders fired in this session
+
+<Tip>
+  Want to customize intervals or break durations? All timing values are configurable via environment variables. See the [Configuration](/configuration/environment-variables) page for details.
+</Tip>

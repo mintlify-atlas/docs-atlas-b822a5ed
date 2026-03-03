@@ -1,0 +1,230 @@
+---
+title: Break Tracking
+description: Smart detection system that measures break compliance, recognizes spontaneous breaks, and persists across sessions
+---
+
+## How Compliance is Measured
+
+Vibe Check doesn't just fire reminders — it actively tracks whether you actually take the suggested breaks. This "compliance tracking" ensures the system adapts to your real behavior.
+
+### The Tracking Flow
+
+1. **Reminder fires** — A micro-break, full break, or hydration reminder appears in your conversation
+2. **Pending state created** — The system marks this reminder as "pending" with a timestamp
+3. **Gap measurement** — On your next prompt, Vibe Check measures how long you were away
+4. **Compliance check** — If the gap exceeds the threshold for that break type, you're credited with taking the break
+5. **Timer reset** — The corresponding timer resets to the current time
+
+<Info>
+This system prevents "reminder spam" — if you take a break, you won't get another reminder for that same activity right away.
+</Info>
+
+## Break Duration Thresholds
+
+Each break type has a minimum duration threshold. You must be away from Claude for at least this long after a reminder to be credited with taking the break:
+
+| Break Type | Default Threshold | Configurable Via |
+|------------|-------------------|------------------|
+| **Micro-break** | 60 seconds (1 min) | `VIBE_CHECK_MICRO_BREAK_DURATION` |
+| **Hydration** | 120 seconds (2 min) | `VIBE_CHECK_HYDRATION_BREAK_DURATION` |
+| **Full break** | 300 seconds (5 min) | `VIBE_CHECK_FULL_BREAK_DURATION` |
+
+These thresholds are stored in the plugin's shared state:
+
+```python
+COMPLIANCE_THRESHOLDS = {
+    "micro": 60,
+    "hydration": 120,
+    "full": 300,
+}
+```
+
+<Note>
+The thresholds are intentionally shorter than the recommended break duration. A 60-second gap after a micro-break reminder suggests you at least stepped away, even if briefly.
+</Note>
+
+## How Tracking Works
+
+The tracking logic lives in the `check_reminder.py` hook:
+
+```python
+# Layer 1: Check break compliance after a reminder
+if pending:
+    if response_gap >= SPONTANEOUS_BREAK_THRESHOLD:
+        # Long gap overrides pending — reset all timers
+        state["last_micro"] = state["last_full"] = state["last_hydration"] = now
+    else:
+        break_type = pending.get("type")
+        threshold = COMPLIANCE_THRESHOLDS.get(break_type, 120)
+        if response_gap >= threshold:
+            # User took the break — reset that timer
+            if break_type == "full":
+                state["last_full"] = now
+                state["last_micro"] = now
+                state["last_hydration"] = now
+            elif break_type == "hydration":
+                state["last_hydration"] = now
+            elif break_type == "micro":
+                state["last_micro"] = now
+    # Clear pending regardless (one-shot check)
+    state["pending_break"] = None
+```
+
+### Key Behavior
+
+- **One-shot check** — The pending state is cleared after checking once, whether you took the break or not
+- **Timer reset logic** — Full breaks reset all timers; micro and hydration breaks only reset their own
+- **No penalties** — If you don't take a break, nothing happens — you'll just get another reminder at the normal interval
+
+## Spontaneous Break Detection
+
+Vibe Check automatically detects when you take breaks without a reminder prompt. If you're away from Claude for **15 minutes or more** (configurable via `VIBE_CHECK_GAP_THRESHOLD`), the system assumes you took a spontaneous break and resets all timers.
+
+```python
+# Layer 2: Spontaneous break detection
+elif response_gap >= SPONTANEOUS_BREAK_THRESHOLD:
+    state["last_micro"] = now
+    state["last_full"] = now
+    state["last_hydration"] = now
+```
+
+### Why This Matters
+
+- **Lunch breaks** — Your lunch break resets all timers, so you don't get a reminder immediately when you return
+- **Meetings** — Stepping away for a 30-minute meeting prevents redundant reminders
+- **Context switches** — Long gaps (15+ minutes) typically represent real breaks in work
+
+<Tip>
+The 15-minute threshold balances two goals: detecting real breaks while not resetting timers for brief interruptions like checking Slack.
+</Tip>
+
+## Timer Reset Logic
+
+Different break types reset different timers:
+
+### Micro-Break
+Resets only the **micro-break timer**:
+```python
+if break_type == "micro":
+    state["last_micro"] = now
+```
+
+### Hydration Reminder
+Resets only the **hydration timer**:
+```python
+if break_type == "hydration":
+    state["last_hydration"] = now
+```
+
+### Full Break
+Resets **all three timers**:
+```python
+if break_type == "full":
+    state["last_full"] = now
+    state["last_micro"] = now
+    state["last_hydration"] = now
+```
+
+### Spontaneous Break
+Also resets **all three timers**:
+```python
+state["last_micro"] = now
+state["last_full"] = now
+state["last_hydration"] = now
+```
+
+<Info>
+This hierarchy reflects that a full break provides the benefits of shorter breaks, but a micro-break doesn't substitute for hydration or full movement.
+</Info>
+
+## Cross-Session Persistence
+
+Vibe Check maintains state across multiple Claude Code sessions using a shared JSON file at `~/.claude/vibe-check-state.json`.
+
+### State File Contents
+
+```json
+{
+  "last_micro": 1709467890.123,
+  "last_full": 1709467890.123,
+  "last_hydration": 1709467890.123,
+  "last_active": 1709470890.456,
+  "last_response_end": 1709470890.456,
+  "pending_break": null,
+  "reminder_count": 5,
+  "last_reminder_fired_at": 1709470800.789,
+  "tip_index": {
+    "micro_break": 2,
+    "full_break": 1,
+    "hydration": 3
+  }
+}
+```
+
+### Session Continuity
+
+When you start a new Claude Code session:
+
+1. **Recent activity check** — If `last_active` is within the last 60 minutes (configurable via `VIBE_CHECK_STALE_THRESHOLD`), timers continue from where they left off
+2. **Stale session reset** — If more than 60 minutes have passed, all timers reset (assumes you took a long break)
+
+```python
+# Stale session check
+if now - state.get("last_active", now) >= STALE_THRESHOLD:
+    state = fresh_state()
+    save_state(state)
+    return
+```
+
+### Multi-Window Support
+
+Multiple Claude Code windows share the same state file:
+- **File locking** — The plugin uses lock files to prevent race conditions
+- **Deduplication** — A 30-second dedup window prevents the same reminder firing in multiple windows
+- **Consistent tracking** — Your break compliance is tracked regardless of which window you're using
+
+<Note>
+If you have two Claude Code windows open and a reminder fires in one, the other window won't repeat it within 30 seconds.
+</Note>
+
+## Configuration
+
+All tracking thresholds are configurable:
+
+```bash
+# Break duration thresholds
+VIBE_CHECK_MICRO_BREAK_DURATION=60         # Gap to credit micro-break (seconds)
+VIBE_CHECK_HYDRATION_BREAK_DURATION=120    # Gap to credit hydration (seconds)
+VIBE_CHECK_FULL_BREAK_DURATION=300         # Gap to credit full break (seconds)
+
+# Detection thresholds
+VIBE_CHECK_GAP_THRESHOLD=900               # Spontaneous break detection (15 min)
+VIBE_CHECK_STALE_THRESHOLD=3600            # Stale session reset (60 min)
+```
+
+See the [Configuration](/configuration/environment-variables) page for all available options.
+
+## Debugging Your Compliance
+
+You can inspect your current state by reading the state file:
+
+```bash
+cat ~/.claude/vibe-check-state.json | jq
+```
+
+Useful fields for debugging:
+- `last_micro` / `last_full` / `last_hydration` — Unix timestamps of last resets
+- `pending_break` — Current pending reminder (null if none)
+- `reminder_count` — Total reminders fired this session
+- `last_response_end` — When Claude last finished responding (used for gap measurement)
+
+<Tip>
+Compare `last_response_end` to the current time to see how long your current gap is, and whether it would trigger spontaneous break detection.
+</Tip>
+
+## Next Steps
+
+- Learn about [Micro-Breaks](/features/micro-breaks) and what triggers them
+- Explore [Full Breaks](/features/full-breaks) and their timer reset behavior
+- Understand [Hydration Reminders](/features/hydration-reminders) and their priority
+- Review [Configuration](/configuration/environment-variables) to customize tracking thresholds
