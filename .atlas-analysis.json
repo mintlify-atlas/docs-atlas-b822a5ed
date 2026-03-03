@@ -1,0 +1,82 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Vibe Check",
+  "projectDescription": "Health reminder plugin for Claude Code that provides automatic stretches, eye breaks, and hydration nudges during coding sessions.",
+  "theme": "almond",
+  "primaryColor": "#7C3AED",
+  "lightColor": "#A78BFA",
+  "darkColor": "#5B21B6",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "how-it-works"
+        ]
+      },
+      {
+        "group": "Features",
+        "pages": [
+          "features/micro-breaks",
+          "features/full-breaks",
+          "features/hydration-reminders",
+          "features/break-tracking"
+        ]
+      },
+      {
+        "group": "Configuration",
+        "pages": [
+          "configuration/environment-variables",
+          "configuration/intervals",
+          "configuration/break-durations"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "reference/health-tips",
+          "reference/stretches",
+          "reference/eye-exercises",
+          "reference/breathing",
+          "reference/ergonomics"
+        ]
+      },
+      {
+        "group": "Advanced",
+        "pages": [
+          "advanced/architecture",
+          "advanced/state-management",
+          "advanced/hooks",
+          "advanced/development"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Automatic micro-breaks every 20 minutes for eye rest and wrist stretches",
+    "Full breaks every 50 minutes for standing and walking",
+    "Hydration reminders every 30 minutes",
+    "Smart break tracking that detects actual break compliance",
+    "Cross-session state persistence with automatic timer synchronization",
+    "On-demand health tips via /vibe-check:health skill",
+    "Customizable intervals via environment variables",
+    "Evidence-based timing following 20-20-20 rule and ultradian rhythms"
+  ],
+  "publicApiSurface": [
+    "/vibe-check:health - On-demand health reference card",
+    "SessionStart hook - Initializes health tracking state",
+    "UserPromptSubmit hook - Checks timers and fires reminders",
+    "Stop hook - Records response end time for break compliance",
+    "VIBE_CHECK_MICRO_INTERVAL - Micro-break interval configuration",
+    "VIBE_CHECK_FULL_INTERVAL - Full break interval configuration",
+    "VIBE_CHECK_HYDRATION_INTERVAL - Hydration reminder interval",
+    "VIBE_CHECK_MICRO_BREAK_DURATION - Micro-break compliance threshold",
+    "VIBE_CHECK_HYDRATION_BREAK_DURATION - Hydration break compliance threshold",
+    "VIBE_CHECK_FULL_BREAK_DURATION - Full break compliance threshold",
+    "VIBE_CHECK_GAP_THRESHOLD - Spontaneous break detection threshold",
+    "VIBE_CHECK_STALE_THRESHOLD - Session staleness threshold",
+    "VIBE_CHECK_BOX_WIDTH - Reminder display width"
+  ]
+}
